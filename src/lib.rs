@@ -58,6 +58,7 @@ use std::ops::Deref;
 use std::mem::transmute;
 use std::str;
 use std::fmt;
+use std::os::unix::io::RawFd;
 use self::Error::*;
 
 pub use raw::PacketHeader;
@@ -580,6 +581,30 @@ impl<T: Activated + ?Sized> Capture<T> {
                 dropped: stats.ps_drop,
                 if_dropped: stats.ps_ifdrop
             })
+        }
+    }
+
+    pub fn setnonblock(&self, non_blocking: bool) -> Result<(), Error> {
+        unsafe {
+            let mut errbuf = [0i8; PCAP_ERRBUF_SIZE];
+
+            let nonblock: ::libc::c_int = if non_blocking { 1 } else { 0 };
+
+            if -1 == raw::pcap_setnonblock(*self.handle, nonblock, errbuf.as_mut_ptr()) {
+                return Error::new(errbuf.as_ptr());
+            }
+            Ok(())
+        }
+    }
+
+    pub fn get_selectable_fd(&self) -> Result<RawFd, Error> {
+        unsafe {
+            let fd = raw::pcap_get_selectable_fd(*self.handle);
+            if fd == -1  {
+                return Error::new(raw::pcap_geterr(*self.handle));
+            } else {
+                Ok(fd as RawFd)
+            }
         }
     }
 }
